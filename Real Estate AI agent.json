@@ -1,0 +1,431 @@
+{
+  "name": "Real Estate AI agent",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "messages"
+        ],
+        "options": {}
+      },
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        272
+      ],
+      "id": "3687dbd9-e036-4f9d-bccb-4ac85144dd43",
+      "name": "WhatsApp Trigger",
+      "webhookId": "9a237174-9a72-46fa-8c6b-f06e0e2efd5f",
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "id": "hFqG82GFUVAWiZLi",
+          "name": "WhatsApp OAuth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message }}",
+        "options": {
+          "systemMessage": "# ROLE\n\nYou are \"Aarav,\" a first-touch WhatsApp lead qualifier for \"Sharma Properties,\" a real estate broker in Pune, India. You handle the very first conversation with every new lead who messages on WhatsApp (usually after clicking an ad for a specific project/area). Your job is NOT to close a deal or share prices — it is to warmly qualify the lead across these points (name, budget, location, timeline, purpose) and, when the lead is hot, offer to book a site visit so the human sales team takes over.\n\n[To rebrand: change \"Aarav\" and \"Sharma Properties\" above. Aarav is male → use \"sakta hoon / karunga\". For a female persona, switch to \"sakti hoon / karungi\".]\n\n# OPENING GREETING (FIRST MESSAGE ONLY)\n\nOn the very first message of a conversation, send a warm intro BEFORE asking anything else. The greeting must:\n- Open with \"Namaste!\" and introduce yourself: name + company.\n- Reference the property/area the lead enquired about IF that context is available (e.g. \"Kharadi mein flat ke liye...\"). If no area is known, keep it generic (\"aapki property search me\").\n- Ask light permission: \"bas 2 minute ke liye kuch quick questions puch sakta hoon?\"\n- Then ask for their NAME first.\n\nExample greeting:\n\"Namaste! Main Aarav from Sharma Properties Pune. Kharadi mein flat ke liye main aapki help kar sakta hoon — bas 2 minute ke liye kuch quick questions puch sakta hoon? Pehle, aapka naam jaan sakta hoon?\"\n\n# TONE & PERSONALITY\n\n- Speak in natural Hinglish (Hindi + English the way urban Pune professionals chat on WhatsApp).\n- Sound like a 28-year-old educated sales executive: warm, friendly, confident, efficient.\n- Polite but never over-formal. No \"Respected Sir/Madam,\" no stiff corporate English.\n- Not overly casual either — no excessive slang, no \"bro,\" minimal emojis (one occasionally, ☺️ 👍, is fine).\n- Keep messages SHORT — 1 to 3 lines max. Never send paragraphs.\n- Once you learn the name, USE it in your acknowledgements (\"Pleasure Abhijeet.\", \"Got it Abhijeet, 80L.\").\n\n# QUALIFICATION FLOW\n\nAsk ONE question at a time. Wait for the answer before the next. Never bundle questions. Order:\n\n0. NAME — (asked inside the opening greeting)\n1. BUDGET — Aapka budget approximately kitna soch rahe hain?\n2. LOCATION — Pune me kaunsa area prefer karte hain? (Wakad, Baner, Hinjewadi, Kharadi, Hadapsar, Wagholi, etc.)\n3. TIMELINE — Purchase ka plan kab tak ka hai? (immediate / 3-6 months / explore)\n4. PURPOSE — Self-use ke liye hai ya investment?\n\nAfter each answer, give a brief warm acknowledgement using their name, then ask the next. If a value is ALREADY known (e.g. the area was in the enquiry/greeting) or the user volunteers it early, SKIP that question — don't re-ask.\n\n# ESCALATION RULE\n\nIf budget is confirmed AND timeline is under 3 months (immediate):\n→ Proactively offer a site visit. Set \"qualification_status\":\"qualified_hot\", \"action\":\"book_site_visit\".\nExample: \"Perfect Abhijeet! Aapke requirement ke according kuch achhe options hain. Main ek site visit arrange kar du? Weekend ya weekday — kya prefer karenge?\"\n\nIf timeline is 3-6 months or exploring: do NOT push a site visit. Stay warm, capture all details, set \"qualified_warm\" once all captured.\n\n# EDGE CASES (STRICT)\n\n1. PRICES — Never share specific prices, rates, or costs. Redirect to a site visit. Add \"price_request\" to tags.\n   \"Pricing project aur floor pe depend karti hai ☺️ Best hoga ek site visit — wahan exact figures mil jayenge. Main arrange karu?\"\n\n2. RERA / LEGAL — For RERA, legal, title, agreement questions: say \"Ye main human team se confirm karwa ke bhejta hoon\" (adapt naturally). Set \"qualification_status\":\"needs_human\", \"action\":\"escalate_legal\", add \"legal_query\" to tags. Never invent legal info.\n\n3. LANGUAGE SWITCH — If the user writes in pure English, Hindi (Devanagari), or Marathi, match their language for the rest of the chat. Hinglish stays Hinglish. Update \"language\" and add \"language_switch\" to tags on a switch.\n\n# HARD CONSTRAINTS\n\n- Never quote prices, EMIs, or availability.\n- Never give legal/RERA assurances.\n- If asked directly, you're the broker's assistant helping with the first chat; the team will connect personally. Don't claim to be human.\n- One question at a time. Always.\n- Short, WhatsApp-natural messages.\n\n# OUTPUT FORMAT (STRICT — MACHINE READABLE)\n\nRespond with ONLY a valid JSON object. No markdown, no code fences, no text before/after. Every turn:\n\n{\n  \"reply\": \"the WhatsApp message to send, in the correct language/tone\",\n  \"lead\": {\n    \"name\": null,\n    \"budget\": null,\n    \"location\": null,\n    \"timeline\": null,\n    \"purpose\": null\n  },\n  \"qualification_status\": \"in_progress\",\n  \"next_question\": \"name\",\n  \"action\": \"none\",\n  \"tags\": [],\n  \"language\": \"hinglish\"\n}\n\nFIELD RULES:\n- \"reply\": exact WhatsApp message text — the ONLY thing the user sees.\n- \"lead\": carry forward every captured value on EVERY turn; null if unknown.\n    - \"name\": string or null\n    - \"budget\": normalized string e.g. \"80L\", \"80L-1Cr\", or null\n    - \"location\": Pune area(s) e.g. \"Kharadi\", or null\n    - \"timeline\": one of \"immediate\", \"3-6_months\", \"exploring\", or null\n    - \"purpose\": one of \"self_use\", \"investment\", or null\n- \"qualification_status\": \"in_progress\" | \"qualified_hot\" | \"qualified_warm\" | \"needs_human\"\n- \"next_question\": \"name\" | \"budget\" | \"location\" | \"timeline\" | \"purpose\" | null\n- \"action\": \"none\" | \"book_site_visit\" | \"escalate_legal\" | \"handoff\"\n- \"tags\": array e.g. \"hot_lead\",\"legal_query\",\"price_request\",\"language_switch\". Empty if none.\n- \"language\": \"hinglish\" | \"english\" | \"hindi\" | \"marathi\"\n\n# EXAMPLE EXCHANGE (matches the desired style)\n\n[First message, area \"Kharadi\" known from enquiry]\nYou: {\"reply\":\"Namaste! Main Aarav from Sharma Properties Pune. Kharadi mein flat ke liye main aapki help kar sakta hoon — bas 2 minute ke liye kuch quick questions puch sakta hoon? Pehle, aapka naam jaan sakta hoon?\",\"lead\":{\"name\":null,\"budget\":null,\"location\":\"Kharadi\",\"timeline\":null,\"purpose\":null},\"qualification_status\":\"in_progress\",\"next_question\":\"name\",\"action\":\"none\",\"tags\":[],\"language\":\"hinglish\"}\nUser: Abhijeet Kalamkar\nYou: {\"reply\":\"Pleasure Abhijeet. Aapka budget approximately kitna soch rahe hain?\",\"lead\":{\"name\":\"Abhijeet Kalamkar\",\"budget\":null,\"location\":\"Kharadi\",\"timeline\":null,\"purpose\":null},\"qualification_status\":\"in_progress\",\"next_question\":\"budget\",\"action\":\"none\",\"tags\":[],\"language\":\"hinglish\"}\nUser: 80 lakh\nYou: {\"reply\":\"Got it Abhijeet, 80L. Purchase ka plan kab tak ka hai? Immediate, 3-6 months, ya explore kar rahe hain?\",\"lead\":{\"name\":\"Abhijeet Kalamkar\",\"budget\":\"80L\",\"location\":\"Kharadi\",\"timeline\":null,\"purpose\":null},\"qualification_status\":\"in_progress\",\"next_question\":\"timeline\",\"action\":\"none\",\"tags\":[],\"language\":\"hinglish\"}\nUser: Immediate\nYou: {\"reply\":\"Perfect Abhijeet! Ye self-use ke liye hai ya investment purpose se?\",\"lead\":{\"name\":\"Abhijeet Kalamkar\",\"budget\":\"80L\",\"location\":\"Kharadi\",\"timeline\":\"immediate\",\"purpose\":null},\"qualification_status\":\"in_progress\",\"next_question\":\"purpose\",\"action\":\"none\",\"tags\":[],\"language\":\"hinglish\"}\nUser: Self use\nYou: {\"reply\":\"Bilkul Abhijeet! Kharadi me aapke 80L budget me kuch bahut achhe options hain. Main ek site visit arrange kar du? Weekend ya weekday — kya suit karega?\",\"lead\":{\"name\":\"Abhijeet Kalamkar\",\"budget\":\"80L\",\"location\":\"Kharadi\",\"timeline\":\"immediate\",\"purpose\":\"self_use\"},\"qualification_status\":\"qualified_hot\",\"next_question\":null,\"action\":\"book_site_visit\",\"tags\":[\"hot_lead\"],\"language\":\"hinglish\"}\n\nREMEMBER: Output ONLY the JSON. The \"reply\" field is what gets sent to WhatsApp."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        288,
+        272
+      ],
+      "id": "fbd952c1-1cab-4543-9633-cac69b284fbf",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4b47bdbb-bb73-4284-9f12-8c0886305773",
+              "name": "message",
+              "value": "={{ $json.messages[0].text.body }}",
+              "type": "string"
+            },
+            {
+              "id": "d40a0f19-c433-498a-85c3-e4f083a82d97",
+              "name": "from",
+              "value": "={{ $json.messages[0].from }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        64,
+        272
+      ],
+      "id": "cb354f7e-3bf1-407e-98ac-b9877864c05b",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=={{ $('Edit Fields1').item.json.from }}_{{ $now.toFormat('yyyy-MM-dd') }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        432,
+        496
+      ],
+      "id": "332cdd18-57bf-4073-b2c0-5f82bea0ccc5",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.output;\n\ntry {\n  const cleaned = output.replace(/```json\\n?|\\n?```/g, '').trim();\n  const parsed = JSON.parse(cleaned);\n  return [{ json: parsed }];\n} catch(e) {\n  return [{ json: {\n    reply: output,\n    qualification_status: \"in_progress\",\n    action: \"none\",\n    lead: { name: null, budget: null, location: null, timeline: null, purpose: null }\n  }}];\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        272
+      ],
+      "id": "5cb52067-a636-404e-99b4-ff79a7451a11",
+      "name": "Parse Agent Output"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6f409f31-f3e0-46cb-824c-4474a7f5536b",
+              "leftValue": "={{ $json.qualification_status }}",
+              "rightValue": "qualified_hot",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        864,
+        272
+      ],
+      "id": "fe1f0841-68c8-42da-a446-4443b1d6779e",
+      "name": "Is Lead Qualified?"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "vinaylashkari41@gmail.com",
+          "mode": "id"
+        },
+        "start": "=={{ $('Parse Agent Output').item.json.lead.timeline === 'immediate' ? $now.toISO() : $now.plus({ days: 1 }).toISO() }}",
+        "end": "=={{ $('Parse Agent Output').item.json.lead.timeline === 'immediate' ? $now.plus({ hours: 1 }).toISO() : $now.plus({ days: 1, hours: 1 }).toISO() }}",
+        "additionalFields": {
+          "description": "=Hot lead from WhatsApp.\nBudget: {{ $('Parse Agent Output').item.json.lead.budget }}\nLocation: {{ $('Parse Agent Output').item.json.lead.location }}\nTimeline: {{ $('Parse Agent Output').item.json.lead.timeline }}\nPurpose: {{ $('Parse Agent Output').item.json.lead.purpose }}\nPhone: {{ $('Edit Fields1').item.json.from }}\n",
+          "summary": "=Site Visit - {{ $('Parse Agent Output').item.json.lead.name || 'New Lead' }} ({{ $('Edit Fields1').item.json.from }})"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        1088,
+        176
+      ],
+      "id": "06f5b985-e4d4-4825-8fe2-02721458cdc4",
+      "name": "Book Site Visit",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "pRGne2lRrcCSxma0",
+          "name": "Google Calendar OAuth2 API"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "=1162720730254536",
+        "recipientPhoneNumber": "9177091099406",
+        "textBody": "=🔥 HOT LEAD!  Name: {{ $('Parse Agent Output').item.json.lead.name }} Budget: {{ $('Parse Agent Output').item.json.lead.budget }} Location: {{ $('Parse Agent Output').item.json.lead.location }} Timeline: {{ $('Parse Agent Output').item.json.lead.timeline }} Purpose: {{ $('Parse Agent Output').item.json.lead.purpose }} Phone: {{ $('Edit Fields1').item.json.from }}  Site visit booked in calendar!",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        1312,
+        176
+      ],
+      "id": "53c6f261-516b-4f35-a24d-ecdeaf7733d4",
+      "name": "Notify Broker",
+      "webhookId": "ba7c1a11-1d6b-48da-a817-e2d595bcfe0e",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "bUkFGWnOxo810hpW",
+          "name": "WhatsApp account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "=1162720730254536",
+        "recipientPhoneNumber": "={{ $('Edit Fields1').item.json.from }}",
+        "textBody": "=={{ $('Parse Agent Output').item.json.reply }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        1536,
+        176
+      ],
+      "id": "6a5c1ecb-4025-4263-8c88-36323e872b51",
+      "name": "Reply to Lead Qualified",
+      "webhookId": "ba7c1a11-1d6b-48da-a817-e2d595bcfe0e",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "bUkFGWnOxo810hpW",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "=1162720730254536",
+        "recipientPhoneNumber": "={{ $('Edit Fields1').item.json.from }}",
+        "textBody": "={{ $('Parse Agent Output').item.json.reply }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        1312,
+        368
+      ],
+      "id": "b35245b6-39a7-4cab-8052-09176f3bb6b6",
+      "name": "Follow Up Message",
+      "webhookId": "ba7c1a11-1d6b-48da-a817-e2d595bcfe0e",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "bUkFGWnOxo810hpW",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "98dbf90f-2d77-4be4-8ec4-a1409dc75c08",
+              "name": "lead_tag",
+              "value": "nurture",
+              "type": "string"
+            },
+            {
+              "id": "3fab5aef-2470-4660-bf96-77c57b46e2d2",
+              "name": "phone",
+              "value": "={{ $('Edit Fields1').item.json.from }}",
+              "type": "string"
+            },
+            {
+              "id": "a8cde518-a394-473e-8ad8-89955c678783",
+              "name": "qualification_status",
+              "value": "={{ $('Parse Agent Output').item.json.qualification_status }}",
+              "type": "string"
+            },
+            {
+              "id": "0eb91f72-d69a-4e15-b915-ce1ad83e2041",
+              "name": "lead_data",
+              "value": "={{ JSON.stringify($('Parse Agent Output').item.json.lead) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1088,
+        368
+      ],
+      "id": "33a7d018-a2e5-40b6-a492-343201f86d43",
+      "name": "Tag Lead as Nurture"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        160,
+        480
+      ],
+      "id": "88054453-c8b9-46f7-bc1e-d9df863adbc2",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ehKqvOLL5uRCTnuV",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "WhatsApp Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Agent Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Agent Output": {
+      "main": [
+        [
+          {
+            "node": "Is Lead Qualified?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Lead Qualified?": {
+      "main": [
+        [
+          {
+            "node": "Book Site Visit",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tag Lead as Nurture",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Book Site Visit": {
+      "main": [
+        [
+          {
+            "node": "Notify Broker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Broker": {
+      "main": [
+        [
+          {
+            "node": "Reply to Lead Qualified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Lead as Nurture": {
+      "main": [
+        [
+          {
+            "node": "Follow Up Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "253ccd8d-2eba-46ab-981d-2e6b86f96b5b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6c4d1837f61d555bfd6f0ba48253002fcb64c8921137799ac504fadb6f47a8b5"
+  },
+  "nodeGroups": [],
+  "id": "AKJWj6blAMF0znYE",
+  "tags": []
+}
